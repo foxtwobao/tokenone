@@ -23,6 +23,7 @@ import type {
   GetLogsResponse,
   GetLogStatsParams,
   GetLogStatsResponse,
+  GetUsageSummaryResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   UserInfo,
@@ -82,6 +83,22 @@ export const getLogStats = (params: GetLogStatsParams = {}) =>
 export const getUserLogStats = (
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
 ) => fetchLogStats('/api/log', params, false)
+
+export async function getDailyUsageSummary(
+  params: GetLogStatsParams = {}
+): Promise<GetUsageSummaryResponse> {
+  const queryParams = buildQueryParams(params as Record<string, unknown>)
+  const res = await api.get(`/api/log/daily-summary?${queryParams}`)
+  return res.data
+}
+
+export async function getUserDailyUsageSummary(
+  params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
+): Promise<GetUsageSummaryResponse> {
+  const queryParams = buildQueryParams(params as Record<string, unknown>)
+  const res = await api.get(`/api/log/self/daily-summary?${queryParams}`)
+  return res.data
+}
 
 export async function getUserInfo(
   userId: number

@@ -220,6 +220,33 @@ export interface LogStatistics {
   tpm: number
 }
 
+export interface UsageSummaryTotals {
+  request_count: number
+  input_tokens: number
+  cache_tokens: number
+  output_tokens: number
+  total_tokens: number
+  quota: number
+}
+
+export interface UsageSummaryItem extends UsageSummaryTotals {
+  user_id?: number
+  username?: string
+  token_id?: number
+  token_name?: string
+}
+
+export interface UsageSummaryData {
+  total: UsageSummaryTotals
+  items: UsageSummaryItem[]
+}
+
+export interface GetUsageSummaryResponse {
+  success: boolean
+  message?: string
+  data?: UsageSummaryData
+}
+
 // ============================================================================
 // Drawing Logs (Midjourney) Types
 // ============================================================================

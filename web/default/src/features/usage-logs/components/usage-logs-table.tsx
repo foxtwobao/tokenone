@@ -39,6 +39,7 @@ import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
+import { DailyUsageSummary } from './daily-usage-summary'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
 
@@ -182,7 +183,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       }
       toolbar={
         isCommon ? (
-          <CommonLogsFilterBar table={table} />
+          <>
+            <CommonLogsFilterBar table={table} />
+            <DailyUsageSummary />
+          </>
         ) : (
           <TaskLogsFilterBar table={table} logCategory={logCategory} />
         )
