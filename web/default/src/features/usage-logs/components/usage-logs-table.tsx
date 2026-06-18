@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { type ColumnDef } from '@tanstack/react-table'
@@ -64,6 +65,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const isAdmin = useIsAdmin()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
+  const [summaryVisible, setSummaryVisible] = useState(false)
 
   const {
     columnFilters,
@@ -184,8 +186,12 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       toolbar={
         isCommon ? (
           <>
-            <CommonLogsFilterBar table={table} />
-            <DailyUsageSummary />
+            <CommonLogsFilterBar
+              table={table}
+              summaryVisible={summaryVisible}
+              onSummaryVisibleChange={setSummaryVisible}
+            />
+            {summaryVisible && <DailyUsageSummary />}
           </>
         ) : (
           <TaskLogsFilterBar table={table} logCategory={logCategory} />

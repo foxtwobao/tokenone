@@ -20,7 +20,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
-import { Eye, EyeOff } from 'lucide-react'
+import { BarChart3, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
@@ -106,6 +106,8 @@ function buildSearchSourceKey(values: {
 
 interface CommonLogsFilterBarProps<TData> {
   table: Table<TData>
+  summaryVisible?: boolean
+  onSummaryVisibleChange?: (visible: boolean) => void
 }
 
 export function CommonLogsFilterBar<TData>(
@@ -118,6 +120,7 @@ export function CommonLogsFilterBar<TData>(
   const isAdmin = useIsAdmin()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
+  const summaryVisible = props.summaryVisible ?? false
 
   const searchState = useMemo<CommonLogDraft>(() => {
     const { start, end } = getDefaultTimeRange()
@@ -267,6 +270,16 @@ export function CommonLogsFilterBar<TData>(
   const statsBar = (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
+      <Button
+        type='button'
+        variant={summaryVisible ? 'secondary' : 'ghost'}
+        size='sm'
+        onClick={() => props.onSummaryVisibleChange?.(!summaryVisible)}
+        className='text-muted-foreground hover:text-foreground gap-1.5'
+      >
+        <BarChart3 />
+        {t('Daily Summary')}
+      </Button>
       <Tooltip>
         <TooltipTrigger
           render={

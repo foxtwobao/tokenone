@@ -1102,6 +1102,7 @@
     "Customize sidebar display content": "个性化设置左侧边栏的显示内容",
     "Daily": "每天",
     "Daily Check-in": "每日签到",
+    "Daily Summary": "每日汇总",
     "Daily Usage Summary": "每日用量汇总",
     "Daily token usage by model across the past few weeks": "过去几周内按模型分布的每日 Token 使用量",
     "Daily token usage by model across the past month": "过去一个月内各模型的每日 Token 用量",
