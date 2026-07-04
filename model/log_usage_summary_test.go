@@ -17,14 +17,11 @@ func setupLogUsageSummaryTestDB(t *testing.T) *gorm.DB {
 
 	previousDB := DB
 	previousLogDB := LOG_DB
-	previousUsingSQLite := common.UsingSQLite
-	previousUsingMySQL := common.UsingMySQL
-	previousUsingPostgreSQL := common.UsingPostgreSQL
+	previousMainDatabaseType := common.MainDatabaseType()
+	previousLogDatabaseType := common.LogDatabaseType()
 	previousRedisEnabled := common.RedisEnabled
 
-	common.UsingSQLite = true
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	initCol()
 
@@ -39,9 +36,7 @@ func setupLogUsageSummaryTestDB(t *testing.T) *gorm.DB {
 	t.Cleanup(func() {
 		DB = previousDB
 		LOG_DB = previousLogDB
-		common.UsingSQLite = previousUsingSQLite
-		common.UsingMySQL = previousUsingMySQL
-		common.UsingPostgreSQL = previousUsingPostgreSQL
+		common.SetDatabaseTypes(previousMainDatabaseType, previousLogDatabaseType)
 		common.RedisEnabled = previousRedisEnabled
 		initCol()
 
