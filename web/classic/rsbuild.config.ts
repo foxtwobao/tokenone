@@ -16,7 +16,6 @@ const requireFromSemiFoundation = createRequire(
 const semiDateFnsDir = path.dirname(
   requireFromSemiFoundation.resolve('date-fns/package.json'),
 )
-
 export default defineConfig(({ envMode }) => {
   const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] })
   const clientServerUrl =
