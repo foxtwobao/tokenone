@@ -4,6 +4,7 @@
 
 ## 运行方式
 
+- 只有本仓库内、目标为 `main`、分支名以 `codex/sync-upstream/` 开头且作者当前具有 Write / Maintain / Admin 权限的 PR 才允许自动合并。每次处理都查询实际仓库权限，不以贡献记录或分支名作为身份凭据。外部 fork 的 PR 不处理；权限被撤销或权限查询失败时停止自动合并。
 - 每天北京时间 06:23 检查（GitHub 的定时任务可能延迟），也可以在 Actions → **Sync upstream** → **Run workflow** 手动运行。
 - 上游提交已包含在本仓库时，不创建 PR。
 - 有新提交时，以该批上游 SHA 创建 `codex/sync-upstream/<sha>` 分支，并尝试合入 TokenOne 的 `main`。
@@ -33,6 +34,12 @@
 读取文件列表失败或达到 GitHub 3,000 个文件的返回上限时，停止自动合并，等待人工检查。
 
 ## 一次性配置
+
+### PR 的 CI 运行权限
+
+在仓库 Settings → Actions → General → Approval for running fork pull request workflows from contributors 中选择 **Require approval for all external contributors**（API 值 `all_external_contributors`）。外部贡献者即使以前有代码被合入，其 fork PR 的 CI 也需要有写权限的开发者批准后才能运行；批准运行不等于批准合并。
+
+本仓库为个人账号仓库，开发者指仓库所有者及有写权限的协作者。此设置约束 `pull_request` 工作流，不限制上游定时同步、仓库开发者的正常推送，也不会将跳过测试误记为通过。`pull_request_target` 工作流不受这项 GitHub 设置约束；当前 CLA 工作流仅在上游仓库启用，本仓库中会跳过。
 
 ### 1. 添加 PAT
 

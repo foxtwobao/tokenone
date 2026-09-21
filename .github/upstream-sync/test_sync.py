@@ -89,9 +89,11 @@ class AutomationTests(unittest.TestCase):
         self.api = Mock()
         self.api.pulls.return_value = []
         self.api.protected_files.return_value = []
+        self.api.is_developer.return_value = True
         self.pr = {
             "number": 1, "url": "https://github.com/foxtwobao/tokenone/pull/1",
             "headRefName": sync.PREFIX + "abc", "headRefOid": "abc",
+            "author": {"login": "foxtwobao"},
             "isCrossRepository": False, "isDraft": False, "mergeable": "MERGEABLE",
             "mergeStateStatus": "BLOCKED", "labels": [], "statusCheckRollup": [],
             "autoMergeRequest": None,
@@ -103,6 +105,34 @@ class AutomationTests(unittest.TestCase):
         sync.synchronize(self.git, self.api)
         self.api.create.assert_not_called()
         self.git.publish.assert_not_called()
+
+    def test_non_developer_sync_pr_cannot_merge(self):
+        self.api.is_developer.return_value = False
+        sync.maintain(self.api, 1)
+        self.api.is_developer.assert_called_once_with({"login": "foxtwobao"})
+        self.api.auto.assert_not_called()
+        self.api.protected_files.assert_not_called()
+        self.api.comment.assert_not_called()
+
+    def test_revoked_write_access_disables_auto_merge(self):
+        self.api.is_developer.return_value = False
+        self.pr["autoMergeRequest"] = {"enabledAt": "now"}
+        sync.maintain(self.api, 1)
+        self.api.auto.assert_called_once_with(self.pr, False)
+
+    def test_permission_lookup_error_stops_auto_merge(self):
+        self.api.is_developer.side_effect = RuntimeError("permission API unavailable")
+        self.pr["autoMergeRequest"] = {"enabledAt": "now"}
+        with self.assertRaisesRegex(RuntimeError, "permission API unavailable"):
+            sync.maintain(self.api, 1)
+        self.api.auto.assert_called_once_with(self.pr, False)
+        self.api.protected_files.assert_not_called()
+
+    def test_fork_sync_named_pr_is_not_processed(self):
+        self.api.pulls.return_value = [dict(self.pr, isCrossRepository=True)]
+        sync.synchronize(self.git, self.api, existing_only=True)
+        self.api.view.assert_not_called()
+        self.api.auto.assert_not_called()
 
     def test_protected_change_blocks_even_when_all_checks_pass(self):
         self.api.protected_files.return_value = ["backend/internal/server/router.go"]
@@ -217,6 +247,28 @@ class AutomationTests(unittest.TestCase):
             sync.synchronize(self.git, self.api)
         self.git.fetch.assert_not_called()
         self.api.auto.assert_not_called()
+
+
+class DeveloperPermissionTests(unittest.TestCase):
+    def test_only_current_write_and_admin_permissions_are_allowed(self):
+        for permission, role, allowed in [
+            ("admin", "admin", True), ("write", "write", True),
+            ("write", "maintain", True), ("read", "triage", False),
+            ("read", "read", False), ("none", "none", False),
+            (None, "unknown", False), ("read", "admin", False),
+        ]:
+            with self.subTest(permission=permission, role=role):
+                api = sync.GitHub()
+                api.api = Mock(return_value={"permission": permission, "role_name": role})
+                self.assertEqual(allowed, api.is_developer({"login": "developer"}))
+                api.api.assert_called_once_with("collaborators/developer/permission")
+
+    def test_missing_author_is_denied(self):
+        api = sync.GitHub()
+        api.api = Mock()
+        for author in (None, {}, {"login": ""}):
+            self.assertFalse(api.is_developer(author))
+        api.api.assert_not_called()
 
 
 class ProtectedFilesTests(unittest.TestCase):
