@@ -21,6 +21,17 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
+      - name: Read application version
+        id: version
+        shell: bash
+        run: |
+          version="$(tr -d '\r\n' < backend/cmd/server/VERSION)"
+          if [ -z "$version" ]; then
+            echo "backend/cmd/server/VERSION is empty" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -53,7 +64,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ steps.version.outputs.version }}
             COMMIT=${{ github.sha }}
             DATE=${{ github.event.head_commit.timestamp || '' }}
           cache-from: type=gha,scope=dockerhub-tokenone-idone
