@@ -88,6 +88,7 @@ class AutomationTests(unittest.TestCase):
         self.git = Mock()
         self.api = Mock()
         self.api.pulls.return_value = []
+        self.api.protected_files.return_value = []
         self.pr = {
             "number": 1, "url": "https://github.com/foxtwobao/tokenone/pull/1",
             "headRefName": sync.PREFIX + "abc", "headRefOid": "abc",
@@ -102,6 +103,40 @@ class AutomationTests(unittest.TestCase):
         sync.synchronize(self.git, self.api)
         self.api.create.assert_not_called()
         self.git.publish.assert_not_called()
+
+    def test_protected_change_blocks_even_when_all_checks_pass(self):
+        self.api.protected_files.return_value = ["backend/internal/server/router.go"]
+        self.pr["statusCheckRollup"] = [{"name": "test", "conclusion": "SUCCESS"}]
+        sync.maintain(self.api, 1)
+        self.api.auto.assert_not_called()
+        self.api.label.assert_called_once_with(1, sync.REVIEW)
+        self.assertIn("backend/internal/server/router.go", self.api.comment.call_args.args[1])
+
+    def test_protected_change_cancels_existing_auto_merge_without_repeated_comment(self):
+        self.api.protected_files.return_value = ["frontend/src/router/index.ts"]
+        self.pr.update(labels=[{"name": sync.REVIEW}], autoMergeRequest={"enabledAt": "now"})
+        sync.maintain(self.api, 1)
+        self.api.auto.assert_called_once_with(self.pr, False)
+        self.api.comment.assert_not_called()
+
+    def test_removing_review_label_does_not_approve_protected_changes(self):
+        self.api.protected_files.return_value = ["backend/internal/server/routes/auth.go"]
+        sync.maintain(self.api, 1)
+        self.api.label.assert_called_once_with(1, sync.REVIEW)
+        self.api.auto.assert_not_called()
+
+    def test_reverted_protected_change_can_merge(self):
+        self.pr["labels"] = [{"name": sync.REVIEW}]
+        sync.maintain(self.api, 1)
+        self.api.label.assert_called_once_with(1, sync.REVIEW, remove=True)
+        self.api.auto.assert_called_once_with(self.pr, True)
+
+    def test_file_api_failure_disables_auto_merge(self):
+        self.api.protected_files.side_effect = RuntimeError("API unavailable")
+        self.pr["autoMergeRequest"] = {"enabledAt": "now"}
+        with self.assertRaisesRegex(RuntimeError, "API unavailable"):
+            sync.maintain(self.api, 1)
+        self.api.auto.assert_called_once_with(self.pr, False)
 
     def test_new_clean_pr_requests_gated_merge(self):
         self.git.contained.return_value = False
@@ -182,6 +217,37 @@ class AutomationTests(unittest.TestCase):
             sync.synchronize(self.git, self.api)
         self.git.fetch.assert_not_called()
         self.api.auto.assert_not_called()
+
+
+class ProtectedFilesTests(unittest.TestCase):
+    def test_modified_deleted_and_renamed_files_across_pages(self):
+        api = sync.GitHub()
+        files = [{"filename": f"unrelated/{i}"} for i in range(100)]
+        protected = sorted(sync.PROTECTED_FILES)
+        api.api = Mock(side_effect=[files, [
+            {"filename": protected[0], "status": "modified"},
+            {"filename": protected[1], "status": "removed"},
+            {"filename": "new/location.go", "previous_filename": protected[2], "status": "renamed"},
+            {"filename": protected[3], "previous_filename": "old/location.go", "status": "renamed"},
+        ]])
+        self.assertEqual(protected, api.protected_files(42))
+        self.assertEqual("pulls/42/files?per_page=100&page=2", api.api.call_args.args[0])
+
+    def test_fork_only_additions_do_not_require_review(self):
+        api = sync.GitHub()
+        api.api = Mock(return_value=[{"filename": path} for path in [
+            "backend/internal/server/middleware/oidc_only.go",
+            "backend/internal/handler/auth_oidc_redirect.go",
+            "frontend/src/views/auth/CasdoorLoginView.vue",
+            ".github/upstream-sync/sync.py",
+        ]])
+        self.assertEqual([], api.protected_files(1))
+
+    def test_file_limit_fails_closed(self):
+        api = sync.GitHub()
+        api.api = Mock(return_value=[{"filename": f"unrelated/{i}"} for i in range(100)])
+        with self.assertRaisesRegex(RuntimeError, "3,000-file limit"):
+            api.protected_files(1)
 
 
 class SettingsTests(unittest.TestCase):

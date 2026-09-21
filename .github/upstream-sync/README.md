@@ -7,7 +7,7 @@
 - 每天北京时间 06:23 检查（GitHub 的定时任务可能延迟），也可以在 Actions → **Sync upstream** → **Run workflow** 手动运行。
 - 上游提交已包含在本仓库时，不创建 PR。
 - 有新提交时，以该批上游 SHA 创建 `codex/sync-upstream/<sha>` 分支，并尝试合入 TokenOne 的 `main`。
-- 无冲突时，创建同步 PR 并申请自动合并。GitHub 分支保护要求 CI、安全扫描、同步脚本测试通过，且分支包含最新 `main`。
+- 无冲突且未涉及下述关键接入文件时，创建同步 PR 并申请自动合并。GitHub 分支保护要求 CI、安全扫描、同步脚本测试通过，且分支包含最新 `main`。
 - 有冲突时，撤销本地尝试的合并，以完整上游提交创建 PR。PR 正文列出冲突文件，添加 `upstream-sync-needs-human` 标签并提醒仓库所有者；不会提交冲突标记。
 - CI 失败时停止自动合并，添加同一标签并提醒所有者。同一待处理状态不重复评论。
 - 同步 PR 尚未处理完时不创建下一批，也不把新上游提交推入该 PR。人工提交会保留。若 `main` 前进且没有冲突，使用 GitHub 的 update-branch API 合入最新 `main`，以当前 PR SHA 防止并发覆盖。
@@ -15,21 +15,30 @@
 - 使用 merge commit 保留上游历史，不使用 squash、rebase、force push 或管理员绕过。
 - 主动关闭某批 PR 后不会为同一上游 SHA 再建 PR。需要重试时重新打开原 PR；下一批上游提交仍会包含被跳过的变更。
 
+## 关键接入文件的人工审核
+
+同步 PR 的实际文件差异涉及以下任一文件时，即使无冲突、CI 全部通过，也不会自动合并：
+
+- `backend/internal/server/router.go`：挂载 IDONE 限制中间件。
+- `frontend/src/router/index.ts`：使用定制登录页面。
+- `backend/internal/handler/auth_oidc_oauth.go`：多域名回调解析的接入点。
+- `backend/internal/server/routes/auth.go`：登录接口变化可能绕开按路径拦截的限制。
+
+项目独有的新增文件不在此名单中。新增、修改、删除、重命名涉及上述路径均会触发审核；重命名同时检查旧路径和新路径。
+
+工作流添加 `upstream-sync-auth-review` 标签，评论列出涉及文件，并取消已经开启的自动合并。每次运行都重新检查实际差异，删除标签不会放行；同一待审状态不重复评论。若撤回关键文件变更，标签会被移除，恢复普通同步流程。
+
+人工处理方式：检查 Files changed，确认定制接入仍然有效，解决冲突并通过全部必需检查，然后在 GitHub 点击 **Merge pull request → Create a merge commit** 手动合并。这里只停止机器人自动合并，不额外要求第二个账号提交 Approve。必要时手动 Update branch 合入最新 `main`。
+
+读取文件列表失败或达到 GitHub 3,000 个文件的返回上限时，停止自动合并，等待人工检查。
+
 ## 一次性配置
 
 ### 1. 添加 PAT
 
-在 GitHub 创建限定于 `foxtwobao/tokenone` 的 fine-grained PAT，配置：
+当前实现使用 **PAT（classic）**，勾选 `repo` 和 `workflow` scopes。`repo` 用于读写仓库、PR 和检查结果，`workflow` 用于同步工作流文件。Classic PAT 的权限不能限定为单个仓库，创建时应设置有效期。
 
-| Repository permission | 权限 | 用途 |
-| --- | --- | --- |
-| Contents | Read and write | 推送同步分支、合并 PR |
-| Pull requests | Read and write | 创建、更新、评论 PR，设置标签和自动合并 |
-| Workflows | Read and write | 同步上游对 `.github/workflows/` 的更改 |
-| Administration | Read-only | 验证分支保护，脚本不修改仓库设置 |
-| Checks | Read-only | 读取 PR 检查结果 |
-
-Metadata 的只读权限由 GitHub 自动附带。如果使用 classic PAT，则需要 `repo` 和 `workflow` scopes。
+Fine-grained PAT 创建页面没有 `Checks` 权限；当前脚本通过 `statusCheckRollup` 读取检查结果，不按细粒度 PAT 方案配置。
 
 将 PAT 保存到仓库 **Settings → Secrets and variables → Actions → New repository secret**，名称为 `UPSTREAM_SYNC_TOKEN`。不要将 token 写入代码、日志或聊天。到期后在同一 Secret 更新。
 
@@ -69,7 +78,7 @@ git commit
 git push tokenone HEAD
 ```
 
-如果已经有该分支，先切换并拉取最新内容。工作流不会覆盖你的修复。修复完成且检查通过后，自动合并重新启用；合并到 `main` 将触发现有 Docker 镜像发布。
+如果已经有该分支，先切换并拉取最新内容。工作流不会覆盖你的修复。修复完成且检查通过后，未涉及关键接入文件的 PR 会重新启用自动合并；合并到 `main` 将触发现有 Docker 镜像发布。
 
 ## 本地验证
 
