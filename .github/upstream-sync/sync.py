@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+from urllib.parse import quote
 
 
 REPOSITORY = "foxtwobao/tokenone"
@@ -69,8 +70,17 @@ class GitHub:
     def view(self, number):
         return json.loads(self.gh(
             "pr", "view", str(number), "--repo", REPOSITORY, "--json",
-            "number,url,headRefName,headRefOid,mergeable,mergeStateStatus,isDraft,autoMergeRequest,labels,statusCheckRollup",
+            "number,url,author,headRefName,headRefOid,mergeable,mergeStateStatus,isDraft,autoMergeRequest,labels,statusCheckRollup",
         ))
+
+    def is_developer(self, author):
+        login = (author or {}).get("login")
+        if not login:
+            return False
+        access = self.api(f"collaborators/{quote(login, safe='')}/permission")
+        # GitHub maps Maintain to write and Triage to read in this field.
+        # Query current permissions, not authorAssociation or a static allowlist.
+        return access.get("permission") in {"write", "admin"}
 
     def labels(self):
         for name, color, description in (
@@ -186,6 +196,11 @@ def maintain(api, number, known_conflicts=()):
     pr = api.view(number)
     labels = {label["name"] for label in pr["labels"]}
     try:
+        if not api.is_developer(pr.get("author")):
+            if pr.get("autoMergeRequest"):
+                api.auto(pr, False)
+            report(f"Sync PR author lacks repository write permission; automation stopped: {pr['url']}")
+            return
         protected = api.protected_files(number)
     except Exception:
         if pr.get("autoMergeRequest"):
