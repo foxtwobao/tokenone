@@ -13,6 +13,14 @@ BASE = "main"
 PREFIX = "codex/sync-upstream/"
 LABEL = "upstream-sync"
 ATTENTION = "upstream-sync-needs-human"
+REVIEW = "upstream-sync-auth-review"
+# Protect integration points inherited from upstream, not fork-only additions.
+PROTECTED_FILES = {
+    "backend/internal/server/router.go",
+    "frontend/src/router/index.ts",
+    "backend/internal/handler/auth_oidc_oauth.go",
+    "backend/internal/server/routes/auth.go",
+}
 CHECKS = {
     "shell", "test", "frontend", "golangci-lint", "release-helpers",
     "backend-security", "frontend-security", "upstream-sync-tests",
@@ -68,9 +76,22 @@ class GitHub:
         for name, color, description in (
             (LABEL, "0366d6", "Automated upstream synchronization"),
             (ATTENTION, "d93f0b", "Upstream sync requires conflict resolution or CI fixes"),
+            (REVIEW, "b60205", "Authentication integration changes require manual review and merge"),
         ):
             self.gh("label", "create", name, "--repo", REPOSITORY, "--color", color,
                     "--description", description, "--force")
+
+    def protected_files(self, number):
+        touched = set()
+        for page in range(1, 31):
+            files = self.api(f"pulls/{number}/files?per_page=100&page={page}")
+            for file in files:
+                # A rename away from a protected path must also require review.
+                touched.update({file["filename"], file.get("previous_filename")} & PROTECTED_FILES)
+            if len(files) < 100:
+                return sorted(touched)
+        # GitHub returns at most 3,000 PR files. Never assume omitted files safe.
+        raise RuntimeError("PR file list reached GitHub's 3,000-file limit; manual review required")
 
     def create(self, branch, sha, conflicts):
         body = (
@@ -164,6 +185,27 @@ def report(message):
 def maintain(api, number, known_conflicts=()):
     pr = api.view(number)
     labels = {label["name"] for label in pr["labels"]}
+    try:
+        protected = api.protected_files(number)
+    except Exception:
+        if pr.get("autoMergeRequest"):
+            api.auto(pr, False)
+        raise
+    if protected:
+        if pr.get("autoMergeRequest"):
+            api.auto(pr, False)
+        if REVIEW not in labels:
+            api.label(number, REVIEW)
+            api.comment(number, f"@{REPOSITORY.split('/')[0]} Authentication integration files changed:\n\n"
+                        + "\n".join(f"- `{path}`" for path in protected)
+                        + "\n\nAutomatic merging is disabled for this PR. Review these changes, "
+                        "resolve any conflicts and wait for required checks, then manually select "
+                        "**Merge pull request → Create a merge commit**. Removing this label "
+                        "does not approve the changes; every sync run checks the actual file diff.")
+        report(f"Authentication changes require manual review and merge: {pr['url']}")
+        return
+    if REVIEW in labels:
+        api.label(number, REVIEW, remove=True)
     failures = [c.get("name") or c.get("context") or "unknown check"
                 for c in pr.get("statusCheckRollup") or []
                 if (c.get("conclusion") or c.get("state")) in FAILED]
