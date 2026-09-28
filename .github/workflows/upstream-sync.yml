@@ -1,0 +1,46 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '23 22 * * *' # 06:23 Asia/Shanghai (GitHub may delay scheduled runs)
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI, Security Scan, Upstream sync tests]
+    types: [completed]
+    branches: ['codex/sync-upstream/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-sync-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      github.repository == 'foxtwobao/tokenone' &&
+      (github.event_name != 'workflow_run' ||
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check sync credential
+        env:
+          SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo '::error::Configure UPSTREAM_SYNC_TOKEN; see .github/upstream-sync/README.md'
+            exit 1
+          fi
+      # Always run the automation from our default branch, never from the PR.
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+      - name: Synchronize upstream
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          GH_PROMPT_DISABLED: '1'
+        run: python3 .github/upstream-sync/sync.py
