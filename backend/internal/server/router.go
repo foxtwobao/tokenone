@@ -69,6 +69,10 @@ func SetupRouter(
 		return nil
 	}))
 	r.Use(middleware2.ServerTiming(cfg.Server.EnableServerTiming))
+	// This fork exposes IDONE (OIDC) as the only user-facing login/registration
+	// method. Keep the policy in one global, path-aware middleware so upstream
+	// auth routes can continue to be merged with minimal conflict.
+	r.Use(middleware2.OIDCOnlyGuard())
 
 	// Serve embedded frontend with settings injection if available
 	if web.HasEmbeddedFrontend() {
