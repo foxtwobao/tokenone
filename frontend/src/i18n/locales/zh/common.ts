@@ -349,6 +349,10 @@ export default {
       signIn: '使用 {providerName} 登录'
     },
     oidc: {
+      redirecting: '正在跳转到 {providerName} 登录页面…',
+      settingsFailed: '无法加载登录配置，请重试。',
+      unavailable: '{providerName} 登录暂未启用，请联系管理员。',
+      startFailed: '未能完成登录，请重试。',
       signIn: '使用 {providerName} 登录',
       callbackTitle: '正在完成 {providerName} 登录',
       callbackProcessing: '正在验证 {providerName} 登录信息，请稍候...',
