@@ -181,7 +181,7 @@ func (h *AuthHandler) OIDCOAuthStart(c *gin.Context) {
 		oidcSetCookie(c, oidcOAuthNonceCookie, encodeCookieValue(nonce), oidcOAuthCookieMaxAgeSec, secureCookie)
 	}
 
-	redirectURI := strings.TrimSpace(cfg.RedirectURL)
+	redirectURI := oidcRequestRedirectURL(c.Request, cfg.RedirectURL)
 	if redirectURI == "" {
 		response.ErrorFrom(c, infraerrors.InternalServer("OAUTH_CONFIG_INVALID", "oauth redirect url not configured"))
 		return
@@ -270,7 +270,7 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 		}
 	}
 
-	redirectURI := strings.TrimSpace(cfg.RedirectURL)
+	redirectURI := oidcRequestRedirectURL(c.Request, cfg.RedirectURL)
 	if redirectURI == "" {
 		redirectOAuthError(c, frontendCallback, "config_error", "oauth redirect url not configured", "")
 		return

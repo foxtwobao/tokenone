@@ -1,0 +1,17 @@
+name: Upstream sync tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-sync-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test sync automation
+        run: python3 -B -m unittest discover -s .github/upstream-sync -p 'test_*.py' -v

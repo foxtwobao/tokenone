@@ -350,6 +350,10 @@ export default {
       signIn: 'Continue with {providerName}'
     },
     oidc: {
+      redirecting: 'Redirecting to {providerName} sign-in…',
+      settingsFailed: 'Unable to load sign-in settings. Please try again.',
+      unavailable: '{providerName} sign-in is not enabled. Please contact an administrator.',
+      startFailed: 'Unable to complete sign-in. Please try again.',
       signIn: 'Continue with {providerName}',
       callbackTitle: 'Signing you in with {providerName}',
       callbackProcessing: 'Completing login with {providerName}, please wait...',
